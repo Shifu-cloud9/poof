@@ -124,36 +124,47 @@ function getAudio(){
 function paperCrumple(){
   const ctx=getAudio();
   if(!ctx) return;
-  const now=ctx.currentTime, duration=.95;
+  const now=ctx.currentTime;
+  // A louder, layered rustle with several short folds so it reads as paper,
+  // rather than a barely audible hiss.
+  const duration=1.15;
   const length=Math.floor(ctx.sampleRate*duration);
   const buffer=ctx.createBuffer(1,length,ctx.sampleRate);
   const data=buffer.getChannelData(0);
   for(let i=0;i<length;i++){
     const t=i/length;
-    const pulse=.35+.65*Math.pow(Math.sin(i/ctx.sampleRate*39),2);
-    data[i]=(Math.random()*2-1)*(1-t)*pulse;
+    const flutter=.22+.78*Math.pow(Math.sin(i/ctx.sampleRate*31),2);
+    data[i]=(Math.random()*2-1)*(1-t)*flutter;
   }
   const noise=ctx.createBufferSource();
   noise.buffer=buffer;
   const filter=ctx.createBiquadFilter();
-  filter.type='bandpass'; filter.frequency.value=1350; filter.Q.value=.7;
+  filter.type='bandpass';
+  filter.frequency.value=1850;
+  filter.Q.value=.55;
   const gain=ctx.createGain();
   gain.gain.setValueAtTime(.0001,now);
-  gain.gain.exponentialRampToValueAtTime(.19,now+.055);
+  gain.gain.exponentialRampToValueAtTime(.32,now+.045);
+  gain.gain.setValueAtTime(.24,now+.22);
   gain.gain.exponentialRampToValueAtTime(.0001,now+duration);
   noise.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
   noise.start(now); noise.stop(now+duration);
-  for(let i=0;i<9;i++){
-    const at=now+.06+i*.09+Math.random()*.035;
-    const osc=ctx.createOscillator(), g=ctx.createGain();
-    osc.type='triangle';
-    osc.frequency.setValueAtTime(450+Math.random()*1000,at);
-    osc.frequency.exponentialRampToValueAtTime(170+Math.random()*200,at+.035);
+  // Crisp little crackles spaced like folds being squeezed together.
+  for(let i=0;i<15;i++){
+    const at=now+.045+i*.065+Math.random()*.045;
+    const burstLength=.035+Math.random()*.035;
+    const n=Math.floor(ctx.sampleRate*burstLength);
+    const b=ctx.createBuffer(1,n,ctx.sampleRate);
+    const d=b.getChannelData(0);
+    for(let j=0;j<n;j++) d[j]=(Math.random()*2-1)*(1-j/n);
+    const src=ctx.createBufferSource(); src.buffer=b;
+    const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=700+Math.random()*900;
+    const g=ctx.createGain();
     g.gain.setValueAtTime(.0001,at);
-    g.gain.exponentialRampToValueAtTime(.035,at+.006);
-    g.gain.exponentialRampToValueAtTime(.0001,at+.05);
-    osc.connect(g); g.connect(ctx.destination);
-    osc.start(at); osc.stop(at+.055);
+    g.gain.exponentialRampToValueAtTime(.11,at+.004);
+    g.gain.exponentialRampToValueAtTime(.0001,at+burstLength);
+    src.connect(hp); hp.connect(g); g.connect(ctx.destination);
+    src.start(at); src.stop(at+burstLength);
   }
 }
 function twinkleSound(){
