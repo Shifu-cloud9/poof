@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Poof</title>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#fffdf4;--gold:#ffe08a;--wood:#7a4b2a;--ink:#2b2a4a}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden}
+body{font-family:Fredoka,system-ui,sans-serif;color:#fff;
+ background:linear-gradient(#0e0c2b 0%,#2a1d54 55%,#7a4a7d 84%,#f3a27a 100%)}
+.hill{position:fixed;left:-10%;right:-10%;bottom:-9vh;height:24vh;background:#110e2a;border-radius:50% 50% 0 0/100% 100% 0 0}
+.star{position:fixed;border-radius:50%;background:#fff;animation:tw 3s ease-in-out infinite}
+@keyframes tw{50%{opacity:.15;transform:scale(.6)}}
+#stage{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;padding-top:clamp(20px,6vh,60px)}
+h1{margin:0;font-size:2.2rem;font-weight:600;letter-spacing:.02em}
+.sub{margin:4px 0 clamp(14px,3vh,28px);opacity:.75;font-size:.95rem;text-align:center;padding:0 16px}
+.slot{position:relative;width:min(420px,88vw);height:min(250px,31vh)}
+#card{position:absolute;inset:0;background:var(--paper);border-radius:6px;transform:rotate(-1.5deg);
+ box-shadow:0 18px 40px rgba(0,0,0,.45);
+ background-image:linear-gradient(90deg,transparent 46px,#f0a0a0 46px 48px,transparent 48px),repeating-linear-gradient(transparent 0 31px,#bcd6ef 31px 32px);
+ background-position:0 0,0 12px}
+#vent{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;resize:none;outline:0;
+ padding:12px 18px 12px 60px;font:500 26px/32px Caveat,"Segoe Print","Comic Sans MS",cursive;color:var(--ink)}
+#vent::placeholder{color:#9a98b8}
+#msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+ text-align:center;opacity:0;transition:opacity .9s;pointer-events:none}
+#msg.on{opacity:1}
+#msg b{font-size:1.6rem;font-weight:600}
+#msg span{opacity:.8}
+#go{margin-top:20px;border:0;border-radius:999px;padding:12px 28px;font:600 1.05rem Fredoka,system-ui,sans-serif;
+ background:var(--gold);color:#1a1440;cursor:pointer;transition:opacity .2s,transform .15s}
+#go:hover:not(:disabled){transform:translateY(-2px)}
+#go:disabled{opacity:.35;cursor:default}
+#go:focus-visible{outline:3px solid #fff;outline-offset:3px}
+#go.hide{opacity:0;pointer-events:none}
+#rig{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
+#ball{position:fixed;left:0;top:0;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;display:none;z-index:6;
+ background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cg fill='none' stroke='%23000' stroke-opacity='.22' stroke-width='1.3'%3E%3Cpath d='M8 14l12 6 6-10 10 12 8-4M10 32l14-8 8 14M18 6l4 14-10 18'/%3E%3C/g%3E%3C/svg%3E"),
+  radial-gradient(circle at 35% 30%,#fffdf4,#e3ddc8 60%,#b8b19a)}
+.fx{position:fixed;z-index:7;pointer-events:none}
+.sp{width:7px;height:7px;margin:-3px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px 2px rgba(255,224,138,.8)}
+.tw{width:56px;height:56px;margin:-28px;background:#fff6c9;filter:drop-shadow(0 0 10px #ffe08a);
+ clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%)}
+@media (prefers-reduced-motion:reduce){.star{animation:none}}
+</style>
+</head>
+<body>
+<div class="hill"></div>
+<svg id="rig" aria-hidden="true">
+ <path id="wood" fill="none" stroke="#7a4b2a" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+ <line id="bL" stroke="#e8c27a" stroke-width="4" stroke-linecap="round"/>
+ <line id="bR" stroke="#e8c27a" stroke-width="4" stroke-linecap="round"/>
+ <circle id="pouch" r="9" fill="#5a3820"/>
+</svg>
+<div id="ball"></div>
+<main id="stage">
+ <h1>Poof</h1>
+ <p class="sub">Write what's bothering you. Nothing is saved.</p>
+ <div class="slot">
+  <div id="card"><textarea id="vent" placeholder="Type it all out here…" maxlength="800" aria-label="Your vent"></textarea></div>
+  <div id="msg" aria-live="polite"><b>Gone.</b><span>It's a star now. Breathe.</span></div>
+ </div>
+ <button id="go" disabled>Crumple &amp; launch</button>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const card=$('#card'),ta=$('#vent'),btn=$('#go'),ball=$('#ball'),msg=$('#msg');
+const bL=$('#bL'),bR=$('#bR'),pouch=$('#pouch'),wood=$('#wood');
+const calm=matchMedia('(prefers-reduced-motion: reduce)').matches?0.4:1;
+let g,done=false,busy=false;
+
+// twinkling background stars
+for(let i=0;i<70;i++){const s=document.createElement('div');s.className='star';const z=1+Math.random()*2;
+ s.style.cssText=`width:${z}px;height:${z}px;left:${Math.random()*100}%;top:${Math.random()*72}%;animation-delay:${Math.random()*3}s;opacity:${.4+Math.random()*.6}`;
+ document.body.prepend(s)}
+
+function layout(){
+ const W=innerWidth,H=innerHeight,fh=Math.min(190,H*.27),bx=W/2,by=H-14,fy=by-fh,jy=by-fh*.55;
+ g={W,H,bx,fy,L:{x:bx-42,y:fy},R:{x:bx+42,y:fy},P0:{x:bx,y:fy+18},P1:{x:bx,y:fy+18+Math.min(100,H*.13)}};
+ wood.setAttribute('d',`M${bx} ${by}L${bx} ${jy}M${bx} ${jy}L${g.L.x} ${fy}M${bx} ${jy}L${g.R.x} ${fy}`);
+ setBand(g.P0.x,g.P0.y);
+}
+function setBand(x,y){
+ bL.setAttribute('x1',g.L.x);bL.setAttribute('y1',g.L.y);bL.setAttribute('x2',x);bL.setAttribute('y2',y);
+ bR.setAttribute('x1',g.R.x);bR.setAttribute('y1',g.R.y);bR.setAttribute('x2',x);bR.setAttribute('y2',y);
+ pouch.setAttribute('cx',x);pouch.setAttribute('cy',y);
+}
+const put=(x,y,s=1,r=0)=>ball.style.transform=`translate(${x}px,${y}px) scale(${s}) rotate(${r}deg)`;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const ease={io:t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2,out:t=>1-Math.pow(1-t,3)};
+const wait=ms=>new Promise(r=>setTimeout(r,ms*calm));
+const run=(ms,fn)=>new Promise(res=>{const d=ms*calm,s=performance.now();
+ (function f(n){const t=Math.min(1,(n-s)/d);fn(t);t<1?requestAnimationFrame(f):res()})(s)});
+
+function fx(cls,x,y){const e=document.createElement('div');e.className='fx '+cls;e.style.left=x+'px';e.style.top=y+'px';document.body.appendChild(e);return e}
+function sparkle(x,y,dist=24,ms=700){
+ const e=fx('sp',x,y),a=Math.random()*6.283,d=dist*(.4+Math.random());
+ e.animate([{transform:'translate(0,0) scale(1)',opacity:1},{transform:`translate(${Math.cos(a)*d}px,${Math.sin(a)*d}px) scale(0)`,opacity:0}],
+  {duration:ms*calm,easing:'ease-out'}).onfinish=()=>e.remove();
+}
+function twinkle(x,y){
+ const s=fx('tw',x,y);
+ s.animate([{transform:'scale(0) rotate(0)',opacity:0},{transform:'scale(1.5) rotate(45deg)',opacity:1,offset:.35},{transform:'scale(0) rotate(90deg)',opacity:0}],
+  {duration:1100*calm,easing:'ease-in-out'}).onfinish=()=>s.remove();
+ for(let i=0;i<16;i++)sparkle(x,y,50+Math.random()*50,1000);
+ const k=fx('sp',x,y);k.style.cssText+=';width:5px;height:5px;margin:-2px';
+ k.animate([{opacity:0},{opacity:1,offset:.3},{opacity:.3,offset:.5},{opacity:1,offset:.7},{opacity:0}],{duration:2600*calm}).onfinish=()=>k.remove();
+}
+function blobs(){
+ const rect=['0 0','33% 0','66% 0','100% 0','100% 33%','100% 66%','100% 100%','66% 100%','33% 100%','0 100%','0 66%','0 33%'];
+ const jag=[...Array(12)].map((_,i)=>{const a=i/12*6.283,r=26+Math.random()*12;return `${50+Math.cos(a)*r*.6}% ${50+Math.sin(a)*r}%`});
+ return ['polygon('+rect.join(',')+')','polygon('+jag.join(',')+')'];
+}
+
+async function launch(){
+ busy=true;btn.disabled=true;btn.classList.add('hide');ta.blur();ta.readOnly=true;
+ const r=card.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,[from,to]=blobs();
+ ta.animate([{opacity:1},{opacity:0}],{duration:350*calm,fill:'forwards'});
+ const a=card.animate([
+  {clipPath:from,transform:'rotate(-1.5deg) scale(1)'},
+  {clipPath:from,transform:'rotate(-6deg) scale(.9,.8)',offset:.25},
+  {clipPath:to,transform:'rotate(200deg) scale(.55)',offset:.65},
+  {clipPath:to,transform:'rotate(420deg) scale(.3)'}],
+  {duration:1000*calm,easing:'ease-in',fill:'forwards'});
+ await a.finished;
+ card.style.visibility='hidden';ball.style.display='block';put(cx,cy,1,0);
+ // ball flies into the pouch
+ await run(650,t=>{const e=ease.io(t);put(lerp(cx,g.P0.x,e),lerp(cy,g.P0.y,e)-Math.sin(t*Math.PI)*50,1,t*360)});
+ setBand(g.P0.x,g.P0.y);
+ // pull back
+ await run(850,t=>{const e=ease.io(t),x=lerp(g.P0.x,g.P1.x,e),y=lerp(g.P0.y,g.P1.y,e);setBand(x,y);put(x,y,1,360-e*20)});
+ await wait(250);
+ // release
+ const T={x:g.bx+(Math.random()-.5)*120,y:Math.max(70,g.H*.12)};
+ const snap=run(600,t=>{const k=Math.exp(-5*t)*Math.cos(t*38);setBand(g.P0.x,g.P0.y+(g.P1.y-g.P0.y)*k)});
+ let n=0;
+ await run(1300,t=>{const x=lerp(g.P1.x,T.x,t)+Math.sin(t*9)*8*t,y=lerp(g.P1.y,T.y,ease.out(t));
+  put(x,y,1-.72*t,340+t*500);if(++n%2===0)sparkle(x,y,16,600)});
+ await snap;
+ ball.style.display='none';twinkle(T.x,T.y);
+ await wait(900);
+ msg.classList.add('on');btn.textContent='Write another';btn.disabled=false;btn.classList.remove('hide');
+ done=true;busy=false;
+}
+function reset(){
+ msg.classList.remove('on');card.getAnimations().forEach(a=>a.cancel());ta.getAnimations().forEach(a=>a.cancel());
+ card.style.visibility='visible';ta.value='';ta.readOnly=false;ta.focus();
+ btn.textContent='Crumple & launch';btn.disabled=true;done=false;
+}
+btn.onclick=()=>done?reset():launch();
+ta.oninput=()=>btn.disabled=!ta.value.trim();
+ta.onkeydown=e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&ta.value.trim()&&!busy)launch()};
+addEventListener('resize',layout);
+layout();ta.focus();
+</script>
+</body>
+</html>
