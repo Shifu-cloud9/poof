@@ -123,42 +123,43 @@ function getAudio(){
   return audioCtx;
 }
 function paperCrumple(){
-  const ctx = getAudio();
-  if(!ctx) return;
-  const now = ctx.currentTime;
-  const duration = 0.9;
-  const length = Math.floor(ctx.sampleRate * duration);
-  const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  // Filtered, softly varying noise gives a light paper-rustle texture.
-  for(let i=0;i<length;i++){
-    const t=i/length;
-    const envelope=(1-t)*(.35+.65*Math.pow(Math.sin(i/ctx.sampleRate*38),2));
-    data[i]=(Math.random()*2-1)*envelope;
-  }
-  const noise=ctx.createBufferSource();
-  noise.buffer=buffer;
-  const filter=ctx.createBiquadFilter();
-  filter.type='bandpass'; filter.frequency.value=1500; filter.Q.value=.65;
-  const gain=ctx.createGain();
-  gain.gain.setValueAtTime(.0001,now);
-  gain.gain.exponentialRampToValueAtTime(.12,now+.06);
-  gain.gain.exponentialRampToValueAtTime(.0001,now+duration);
-  noise.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
-  noise.start(now); noise.stop(now+duration);
-  // A few tiny transient crackles make it feel like paper folding, not static.
-  for(let i=0;i<7;i++){
-    const at=now+.08+i*.095+Math.random()*.035;
-    const osc=ctx.createOscillator(), g=ctx.createGain();
-    osc.type='triangle';
-    osc.frequency.setValueAtTime(500+Math.random()*900,at);
-    osc.frequency.exponentialRampToValueAtTime(180+Math.random()*180,at+.035);
-    g.gain.setValueAtTime(.0001,at);
-    g.gain.exponentialRampToValueAtTime(.025,at+.006);
-    g.gain.exponentialRampToValueAtTime(.0001,at+.045);
-    osc.connect(g); g.connect(ctx.destination);
-    osc.start(at); osc.stop(at+.05);
-  }
+ const ctx=getAudio();
+ if(!ctx) return;
+ const now=ctx.currentTime;
+ // Layered filtered noise makes a fuller, papery rustle instead of a thin hiss.
+ const duration=1.25;
+ const length=Math.floor(ctx.sampleRate*duration);
+ const buffer=ctx.createBuffer(1,length,ctx.sampleRate);
+ const data=buffer.getChannelData(0);
+ for(let i=0;i<length;i++){
+  const t=i/length;
+  const flutter=.2+.8*Math.pow(Math.sin(i/ctx.sampleRate*28),2);
+  data[i]=(Math.random()*2-1)*(1-t)*flutter;
+ }
+ const source=ctx.createBufferSource(); source.buffer=buffer;
+ const band=ctx.createBiquadFilter(); band.type='bandpass'; band.frequency.value=1750; band.Q.value=.55;
+ const low=ctx.createBiquadFilter(); low.type='lowpass'; low.frequency.value=5200;
+ const main=ctx.createGain();
+ main.gain.setValueAtTime(.0001,now);
+ main.gain.exponentialRampToValueAtTime(.42,now+.045);
+ main.gain.setValueAtTime(.28,now+.22);
+ main.gain.exponentialRampToValueAtTime(.0001,now+duration);
+ source.connect(band); band.connect(low); low.connect(main); main.connect(ctx.destination);
+ source.start(now); source.stop(now+duration);
+ // Short, irregular paper-fold crackles layered over the rustle.
+ for(let i=0;i<19;i++){
+  const at=now+.035+i*.058+Math.random()*.05;
+  const burst=.025+Math.random()*.045, count=Math.max(1,Math.floor(ctx.sampleRate*burst));
+  const b=ctx.createBuffer(1,count,ctx.sampleRate), d=b.getChannelData(0);
+  for(let j=0;j<count;j++) d[j]=(Math.random()*2-1)*(1-j/count);
+  const crack=ctx.createBufferSource(); crack.buffer=b;
+  const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=650+Math.random()*1100;
+  const g=ctx.createGain();
+  g.gain.setValueAtTime(.0001,at);
+  g.gain.exponentialRampToValueAtTime(.13,at+.004);
+  g.gain.exponentialRampToValueAtTime(.0001,at+burst);
+  crack.connect(hp); hp.connect(g); g.connect(ctx.destination);
+  crack.start(at); crack.stop(at+burst);
 }
 function twinkleSound(){
   const ctx=getAudio();
@@ -184,6 +185,7 @@ function blobs(){
 }
 
 async function launch(){
+ paperCrumple();
  busy=true;btn.disabled=true;btn.classList.add('hide');ta.blur();ta.readOnly=true;
  const r=card.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,[from,to]=blobs();
  ta.animate([{opacity:1},{opacity:0}],{duration:350*calm,fill:'forwards'});
@@ -202,7 +204,7 @@ async function launch(){
  await run(850,t=>{const e=ease.io(t),x=lerp(g.P0.x,g.P1.x,e),y=lerp(g.P0.y,g.P1.y,e);setBand(x,y);put(x,y,1,360-e*20)});
  await wait(250);
  // release
- const T={x:g.bx+(Math.random()-.5)*120,y:Math.max(70,g.H*.12)};
+ const T={x:Math.max(34,Math.min(g.W-34,g.W*(.12+Math.random()*.76))),y:Math.max(65,g.H*(.10+Math.random()*.48))};
  const snap=run(600,t=>{const k=Math.exp(-5*t)*Math.cos(t*38);setBand(g.P0.x,g.P0.y+(g.P1.y-g.P0.y)*k)});
  let n=0;
  await run(1300,t=>{const x=lerp(g.P1.x,T.x,t)+Math.sin(t*9)*8*t,y=lerp(g.P1.y,T.y,ease.out(t));
